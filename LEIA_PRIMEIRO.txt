@@ -1,0 +1,29 @@
+DETHRONE CONTROL — Atualizacao GitHub v1.1
+
+ALTERAÇÃO SOLICITADA
+- Em "Previsão de término", mostra data + horário de encerramento.
+- Mostra quantas horas de Dethrone faltam para completar o pacote.
+- A linha de cada personagem mostra sua propria previsão e suas horas restantes.
+- Terça-feira: previsão de término às 09h (último turno da manhã).
+- Outros dias: previsão de término às 21h (último turno da noite).
+- Horas realizadas hoje são abatidas do saldo. Horas parciais em dias anteriores
+  permanecem no histórico, mas não contam para formar um dia completo.
+- A data se ajusta automaticamente quando você marca ou corrige sessões.
+
+PUBLICAÇÃO NO GITHUB PAGES
+Substitua SOMENTE estes três arquivos do seu repositório:
+  index.html
+  css/styles.css
+  js/app.js
+
+NÃO ALTERE:
+  js/config.js (sua URL atual do Supabase)
+  js/cloud.js (login/PIN e sincronização já configurados)
+  supabase/ (banco, função e Secrets não precisam ser modificados)
+
+ATENÇÃO
+Este ZIP contém somente os arquivos modificados e este guia, não um projeto
+independente. Faça um backup JSON no site antes de atualizar, por precaução.
+O cálculo exibe horas de SESSÕES de Dethrone restantes, não horas corridas
+até o dia do vencimento. Se houver vários personagens, o painel mostra o
+maior saldo individual, sem somar horas realizadas simultaneamente.

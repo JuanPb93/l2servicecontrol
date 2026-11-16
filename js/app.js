@@ -1,4 +1,4 @@
-/* Dethrone Control v1.4 — interface original v1.3, sincronizada com Supabase. */
+/* Dethrone Control v1.1 (GitHub) — previsão por data, horário e horas restantes. */
 window.DethroneStart = (initialPayload, cloud) => {
   'use strict';
   const KEY = 'dethrone-control-v11';
@@ -125,6 +125,44 @@ window.DethroneStart = (initialPayload, cloud) => {
   function clientProgress(client){return client.characters.length?Math.min(...client.characters.map(ch=>completedCount(client,ch))):0;}
   function clientProjected(client){return client.characters.length?client.characters.map(ch=>projected(client,ch)).filter(Boolean).sort().at(-1)||null:null;}
   function clientHours(client){return client.characters.reduce((x,ch)=>x+recordedHours(client,ch),0);}
+  // A hora de término é a do ÚLTIMO turno previsto para o dia final.
+  // Terça: manhã até 09h; todos os outros dias: noite até 21h.
+  function finishClock(date){
+    if(!date)return '—';
+    const last=shifts(date).at(-1);
+    return last?.id==='morning'?'09h':'21h';
+  }
+  function forecastDetails(client,ch){
+    const date=projected(client,ch);
+    if(!date)return {date:null,time:'—',hoursRemaining:0};
+    const completed=completedCount(client,ch);
+    if(completed>=client.planDays)return {date,time:finishClock(date),hoursRemaining:0};
+    // Somam-se SOMENTE as horas das sessões que ainda poderão compor
+    // os dias completos restantes. Horas parciais de dias já passados
+    // são mantidas no histórico, mas não contam como dias completos.
+    // As horas já realizadas HOJE são subtraídas do saldo previsto.
+    let hoursRemaining=0;
+    let day=client.startDate>today()?client.startDate:today();
+    for(let i=0;i<1500 && day<=date;i++,day=plusDays(day,1)){
+      const schedule=shifts(day);
+      if(schedule.some(shift=>!allowed(client,day,shift.id)))continue;
+      for(const shift of schedule){
+        const done=day===today()?getHours(client.id,ch.id,day,shift.id):0;
+        hoursRemaining+=Math.max(0,shift.max-done);
+      }
+    }
+    return {date,time:finishClock(date),hoursRemaining};
+  }
+  function clientForecastDetails(client){
+    if(!client?.characters?.length)return null;
+    const details=client.characters.map(ch=>forecastDetails(client,ch));
+    const last=details.filter(item=>item.date).sort((a,b)=>a.date.localeCompare(b.date)).at(-1);
+    if(!last)return null;
+    // Personagens podem jogar em paralelo: não somar horas de personagens.
+    // O maior saldo individual indica a maior quantidade de horas pendentes.
+    return {date:last.date,time:last.time,hoursRemaining:Math.max(...details.map(item=>item.hoursRemaining))};
+  }
+  function forecastLabel(info){return info?.date?`${fmt(info.date,{day:'2-digit',month:'2-digit',year:'numeric'})} · ${info.time}`:'—';}
   // Cada personagem participa no máximo uma vez por dia.
   function golemDone(partyId,character,date){
     return state.golems.some(g=>g.partyId===partyId&&g.character===character&&g.date===date);
@@ -143,10 +181,11 @@ window.DethroneStart = (initialPayload, cloud) => {
     const active=state.clients.filter(c=>c.status==='active'&&clientProgress(c)<c.planDays).length;
     const current=getClient(ui.clientId)||state.clients[0];
     if(current)ui.clientId=current.id;
+    const forecast=current?clientForecastDetails(current):null;
     return `
       <div class="stat-row"><div class="stat"><span class="stat-label">Services ativos</span><strong>${active}</strong><small>clientes em andamento</small></div>
       <div class="stat"><span class="stat-label">Dias concluídos ${current?'(selecionado)':''}</span><strong class="gold">${current?clientProgress(current):'0'}<span style="color:#748297;font-size:17px">/${current?.planDays||30}</span></strong><small>somente dias completos</small></div>
-      <div class="stat"><span class="stat-label">Previsão de término</span><strong style="font-size:20px">${current?(clientProjected(current)?fmt(clientProjected(current)):'—'):'—'}</strong><small>ajusta com os registros</small></div></div>
+      <div class="stat"><span class="stat-label">Previsão de término</span><strong class="forecast-date">${forecastLabel(forecast)}</strong><small class="forecast-hours">${forecast?`◷ ${forecast.hoursRemaining}h restantes de Dethrone`:'Aguardando cadastro'}</small></div></div>
       <section class="panel"><div class="panel-header"><div><h2>Meus services</h2><p>Escolha um cliente ou cadastre um novo.</p></div><button class="btn primary btn-small" data-action="new-client">＋ Novo service</button></div>
       <div class="panel-body">${state.migrated?`<div class="notice" style="margin-bottom:13px">Dados da versão anterior recuperados. As sessões antigas foram importadas como horas completas. Os antigos bosses estão guardados no backup, mas não contam para a nova meta individual.</div>`:''}
         ${state.demo?`<div class="hint" style="margin:0 0 14px"><span>✦</span><span>Há um service de exemplo iniciado em 04/11/2026 à noite. <button class="btn btn-small ghost" style="margin-left:9px" data-action="remove-demo">Remover exemplo</button></span></div>`:''}
@@ -155,17 +194,17 @@ window.DethroneStart = (initialPayload, cloud) => {
       </div></section>`;
   }
   function renderClient(c){
-    const progress=clientProgress(c),end=clientProjected(c),totalH=clientHours(c),day=ui.serviceDate;
+    const progress=clientProgress(c),end=clientForecastDetails(c),totalH=clientHours(c),day=ui.serviceDate;
     const isFinished=progress>=c.planDays;
     const schedule=shifts(day);
     const upcoming=day>=c.startDate;
     const canMark=day<=today()&&upcoming;
     const completion=Math.round(Math.min(100,progress/c.planDays*100));
     return `<div class="service-summary"><div><h2>${esc(c.name)}</h2><p>Início: <b>${fmt(c.startDate)}</b> · ${c.startShift==='night'?'somente à noite':'pela manhã'} · ${c.characters.length} personagem(ns)</p>
-      <div class="meta-tags"><span class="tag ${isFinished?'good':''}">${isFinished?'✓ Pacote concluído':`${progress}/${c.planDays} dias completos`}</span><span class="tag">◷ ${totalH}h registradas</span>${c.status==='paused'?'<span class="tag warn">Pausado</span>':''}<span class="tag ${isFinished?'good':'warn'}">${isFinished?'Finalizado':'Previsão: '+(end?fmt(end):'—')}</span></div></div>
+      <div class="meta-tags"><span class="tag ${isFinished?'good':''}">${isFinished?'✓ Pacote concluído':`${progress}/${c.planDays} dias completos`}</span><span class="tag">◷ ${totalH}h registradas</span>${c.status==='paused'?'<span class="tag warn">Pausado</span>':''}<span class="tag ${isFinished?'good':'warn'}">${isFinished?'Finalizado':'Previsão: '+forecastLabel(end)}</span></div></div>
       <div class="toolbar"><button class="btn btn-small secondary" data-action="edit-client" data-id="${esc(c.id)}">✎ Editar</button><button class="btn btn-small danger" data-action="delete-client" data-id="${esc(c.id)}">Excluir</button></div></div>
       <div class="progressbar"><i style="width:${completion}%"></i></div>
-      <p class="guide"><b>Contagem:</b> o dia só conta quando todas as horas previstas forem cumpridas. Você pode marcar 1h, 2h, 3h ou 4h; as horas parciais ficam registradas. Dias incompletos já passados adiam a previsão.</p>
+      <p class="guide"><b>Contagem:</b> o dia só conta quando todas as horas previstas forem cumpridas. Você pode marcar 1h, 2h, 3h ou 4h; as horas parciais ficam registradas. Dias incompletos já passados adiam a previsão. <b>Horas restantes:</b> saldo de sessões necessárias para completar o pacote, considerando as horas feitas hoje; em services com vários personagens, aparece o maior saldo individual, sem somar horas simultâneas.</p>
       <div class="divider"></div>
       <div class="date-tools"><div><h2 style="margin-bottom:3px">Registro diário</h2><p style="font-size:11px;margin:0">Marque quantas horas cada personagem fez.</p></div>
         <div class="date-navigator"><button class="btn btn-icon secondary" data-action="service-prev" aria-label="Dia anterior">‹</button><input class="date-input" id="service-date" type="date" value="${day}" max="${today()}" aria-label="Data do Dethrone"><button class="btn btn-icon secondary" data-action="service-next" aria-label="Próximo dia" ${day>=today()?'disabled':''}>›</button><button class="btn btn-small ghost" data-action="service-today">Hoje</button></div></div>
@@ -186,8 +225,8 @@ window.DethroneStart = (initialPayload, cloud) => {
       <div class="toolbar" style="margin-top:13px"><button class="btn btn-small secondary" data-action="fill-day" ${!canMark?'disabled':''}>✓ Completar horas do dia (todos)</button><button class="btn btn-small ghost" data-action="clear-day" ${!canMark?'disabled':''}>Limpar dia</button>${state.demo?'<button class="btn btn-small ghost" data-action="see-demo">Ver 04/11 (exemplo)</button>':''}</div>
       <div class="divider"></div><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h3>Andamento por personagem</h3><span style="color:#8699ac;font-size:11px">Previsão revisada automaticamente</span></div>
       <div class="members-list" style="margin-top:12px">${c.characters.map(ch=>{
-        const n=completedCount(c,ch),d=projected(c,ch);
-        return `<div class="member-progress"><div><strong>${esc(ch.name)}</strong><small style="display:block">${recordedHours(c,ch)}h realizadas</small></div><div><strong style="color:${n>=c.planDays?'#74d9ad':'#f4bd6b'}">${n}/${c.planDays}</strong><small style="display:block">dias</small></div><div><div class="meter"><i style="width:${Math.min(100,n/c.planDays*100)}%"></i></div><small>${d?'Previsto: '+fmt(d):'Sem previsão'}</small></div></div>`;
+        const n=completedCount(c,ch),d=forecastDetails(c,ch);
+        return `<div class="member-progress"><div><strong>${esc(ch.name)}</strong><small style="display:block">${recordedHours(c,ch)}h realizadas</small></div><div><strong style="color:${n>=c.planDays?'#74d9ad':'#f4bd6b'}">${n}/${c.planDays}</strong><small style="display:block">dias</small></div><div><div class="meter"><i style="width:${Math.min(100,n/c.planDays*100)}%"></i></div><small>Previsão: ${forecastLabel(d)}</small><small class="char-hours-left">◷ ${d.hoursRemaining}h restantes</small></div></div>`;
       }).join('')}</div>`;
   }
   function renderGolem(){

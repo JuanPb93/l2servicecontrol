@@ -47,3 +47,9 @@
 .mobile-cloud-status.working{color:#f1c079}
 .mobile-cloud-status.error{color:#f9a0a4}
 @media(max-width:650px){.mobile-cloud-status{display:block}}
+
+/* GitHub v1.1 — previsão com data, hora e saldo de horas */
+.stat .forecast-date{font-size:clamp(16px,1.7vw,21px);line-height:1.35;letter-spacing:-.2px;overflow-wrap:anywhere;color:#f2c47c}
+.stat small.forecast-hours{display:block;margin-top:9px;font-size:12px;font-weight:700;color:#96e2bf}
+.member-progress .char-hours-left{display:block;margin-top:3px;color:#91dbb6;font-weight:750}
+@media(max-width:650px){.stat .forecast-date{font-size:13px}.stat small.forecast-hours{font-size:10px;line-height:1.3}.member-progress .char-hours-left{font-size:10px}}
