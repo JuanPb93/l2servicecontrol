@@ -1,0 +1,21 @@
+DETHRONE CONTROL v1.4 — CONFIGURAÇÃO RÁPIDA
+
+1. Supabase Dashboard > projeto > SQL Editor: execute supabase/setup.sql
+2. Edge Functions > Secrets:
+   ACCESS_PINS = seus TRÊS PINs informados anteriormente, separados por vírgula
+   SESSION_SECRET = chave aleatória com 32 ou mais caracteres
+   Não publique estes valores no GitHub.
+3. Edge Functions > Deploy a new function > Via Editor:
+   Nome = dethrone-api
+   Cole o código de supabase/functions/dethrone-api/index.ts
+   Deploy function
+   DESATIVE "Verify JWT" nas configurações da função.
+4. Abra js/config.js e coloque a URL real do projeto Supabase.
+5. GitHub Pages: substitua index.html, css/ e js/ pelos novos arquivos.
+6. Abra o site, digite um dos seus três PINs e veja "Salvo na nuvem".
+7. Se houver registros v1.3, use a opção de importar registros antigos ou um backup JSON.
+
+Observação: Todos os três PINs compartilham exatamente o mesmo banco e o mesmo painel.
+O backup JSON é recomendado mesmo com a nuvem.
+
+Detalhes e dicas de resolução de problemas: veja README.md.

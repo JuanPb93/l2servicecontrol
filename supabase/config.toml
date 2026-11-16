@@ -1,0 +1,2 @@
+[functions.dethrone-api]
+verify_jwt = false
